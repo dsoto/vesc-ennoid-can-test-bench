@@ -55,12 +55,14 @@ def update_parameters():
                       '0x1e0a':process_dbms_1eXX,
                       '0x1f0a':process_dbms_1fXX}
 
-    message = bus.recv(1)
+    message = bus.recv(timeout=0.050)
     if message is not None:
-        print('.', end='')
+        print('+', end='')
         if message.arbitration_id in message_ids:
             # dispatch message to functions
             read_functions[str(hex(message.arbitration_id))](vehicle_data)
+    else:
+        print('.', end='')
 
 def check_if_time_to_print():
     global last_display
