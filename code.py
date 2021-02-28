@@ -54,13 +54,13 @@ print("Hello World!")
 # TODO: this is hardwired for CAN bus ids
 # TODO: make CAN ids based on device ID config file
 # array of message ids to parse
-message_ids = [0x1001, 0x1b01, 0x1e02, 0x1f02]
 
 # dict of pointers to read functions
 # maybe list is more efficient
 
 def print_to_console():
 
+    print()
     print("H", vehicle_data['high_cell_voltage']/1E5, end=' | ')
     print("L", vehicle_data['low_cell_voltage']/1E5, end=' | ')
     print('Vb', vehicle_data['battery_voltage_BMS']/1E5, end=' | ')
@@ -88,17 +88,19 @@ def update_parameters():
     def process_dbms_1eXX(vehicle_data):
         vehicle_data['battery_voltage_BMS'], vehicle_data['battery_current_BMS'] = struct.unpack('>ii', message.data)
 
+    message_ids = [0x1001, 0x1b01, 0x1e0a, 0x1f0a]
+
     read_functions = {'0x1001':process_vesc_10XX,
                       '0x1b01':process_vesc_1bXX,
                       '0x1e0a':process_dbms_1eXX,
                       '0x1f0a':process_dbms_1fXX}
 
-
     message = bus.recv(1)
     if message is not None:
-        # dispatch message to functions
-        print(hex(message.arbitration_id), message.data)
-
+        print('.', end='')
+        if message.arbitration_id in message_ids:
+            # dispatch message to functions
+            read_functions[str(hex(message.arbitration_id))](vehicle_data)
 
 def check_if_time_to_print():
     global last_display
