@@ -3,27 +3,6 @@
 import struct
 import time
 import can
-from can.bus import BusState
-
-
-'''
-VESC packets
-
-00000901   DLC:  8    00 00 00 00 00 00 00 00
-00000e01   DLC:  8    00 00 00 00 00 00 00 00
-00000f01   DLC:  8    00 00 00 00 00 00 00 00
-00001001   DLC:  8    01 21 fc 82 00 00 23 c9
-00001b01   DLC:  8    00 00 00 00 01 ea 00 00
-
-EBMS packets
-
-MAIN_IV
-00001e0a   DLC:  8    00 4a 87 4c ff ff f9 e8
-CELL_VOLTAGE
-00001f0a   DLC:  8    00 06 3c 22 00 06 3c cc
-THROTTLE_CH_DISCH_BOOL
-0000200a   DLC:  8    12 d4 04 af 63 64 64 25
-'''
 
 vehicle_data = {'battery_voltage':0,
                 'battery_current':0,
@@ -38,25 +17,7 @@ vehicle_data = {'battery_voltage':0,
                 'motor_current':0,
                 'controller_temperature':0}
 
-# if hasattr(board, 'BOOST_ENABLE'):
-#     boost_enable = digitalio.DigitalInOut(board.BOOST_ENABLE)
-#     boost_enable.switch_to_output(True)
-
-# can = canio.CAN(rx=board.CAN_RX, tx=board.CAN_TX, baudrate=500_000, auto_restart=True)
-#listener = can.listen(matches=[canio.Match(0x002, mask=0xFFF, extended=True)], timeout=.5)
-# listener = can.listen(timeout=.5)
-
-# old_bus_state = None
-# old_count = -1
-
-print("Hello World!")
-
-# TODO: this is hardwired for CAN bus ids
-# TODO: make CAN ids based on device ID config file
-# array of message ids to parse
-
-# dict of pointers to read functions
-# maybe list is more efficient
+print("ENNOID/VESC CAN reader")
 
 def print_to_console():
 
@@ -69,9 +30,6 @@ def print_to_console():
     print('Tc', vehicle_data['controller_temperature']/1E1, end=' | ')
     print('Tm', vehicle_data['motor_temperature']/1E1, end=' | ')
     print(time.monotonic())
-
-display_update_seconds = 1.0
-last_display = time.monotonic()
 
 def update_parameters():
 
@@ -87,6 +45,8 @@ def update_parameters():
 
     def process_dbms_1eXX(vehicle_data):
         vehicle_data['battery_voltage_BMS'], vehicle_data['battery_current_BMS'] = struct.unpack('>ii', message.data)
+
+    # TODO: make CAN ids based on device ID config file
 
     message_ids = [0x1001, 0x1b01, 0x1e0a, 0x1f0a]
 
@@ -111,6 +71,9 @@ def check_if_time_to_print():
 bus = can.interface.Bus(bustype='slcan',
                         channel='/dev/tty.usbmodem14101',
                         bitrate=500000)
+
+display_update_seconds = 1.0
+last_display = time.monotonic()
 
 while 1:
     update_parameters()
