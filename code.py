@@ -34,19 +34,32 @@ vehicle_data_last_read = {'battery_voltage':0,
 
 print("ENNOID/VESC CAN reader")
 
-def print_to_console():
 
-    print()
-    print("R", vehicle_data['motor_rpm']/1E0, end=' | ')
-    print("H", vehicle_data['high_cell_voltage']/1E5, end=' | ')
-    print("L", vehicle_data['low_cell_voltage']/1E5, end=' | ')
-    print('Vb', vehicle_data['battery_voltage_BMS']/1E5, end=' | ')
-    print('Vc', vehicle_data['battery_voltage']/1E1, end=' | ')
-    print('I', vehicle_data['battery_current_BMS']/1E5, end=' | ')
-    print('Im', vehicle_data['total_current']/1E1, end=' | ')
-    print('Tc', vehicle_data['controller_temperature']/1E1, end=' | ')
-    print('Tm', vehicle_data['motor_temperature']/1E1, end=' | ')
-    print(time.monotonic())
+class CONSOLE:
+# display class just checks if time to print and prints
+
+    def __init__(self):
+        self.display_update_seconds = 1.0
+        self.last_display = time.monotonic()
+
+    def update(self):
+        if time.monotonic() - self.last_display > self.display_update_seconds:
+            self.print_to_console()
+            self.last_display = time.monotonic()
+
+    def print_to_console(self):
+        print()
+        print("R", vehicle_data['motor_rpm']/1E0, end=' | ')
+        print("H", vehicle_data['high_cell_voltage']/1E5, end=' | ')
+        print("L", vehicle_data['low_cell_voltage']/1E5, end=' | ')
+        print('Vb', vehicle_data['battery_voltage_BMS']/1E5, end=' | ')
+        print('Vc', vehicle_data['battery_voltage']/1E1, end=' | ')
+        print('I', vehicle_data['battery_current_BMS']/1E5, end=' | ')
+        print('Im', vehicle_data['total_current']/1E1, end=' | ')
+        print('Tc', vehicle_data['controller_temperature']/1E1, end=' | ')
+        print('Tm', vehicle_data['motor_temperature']/1E1, end=' | ')
+        print(time.monotonic())
+
 
 def update_parameters():
 
@@ -92,22 +105,14 @@ def update_parameters():
     else:
         print('.', end='')
 
-def check_if_time_to_print():
-    global last_display
-    if time.monotonic() - last_display > display_update_seconds:
-        print_to_console()
-        last_display = time.monotonic()
-
 bus = can.interface.Bus(bustype='slcan',
                         channel='/dev/tty.usbmodem14101',
                         bitrate=500000)
 
-display_update_seconds = 1.0
-last_display = time.monotonic()
 
-# display class just checks if time to print and prints
-# class CONSOLE():
+console = CONSOLE()
 
 while 1:
     update_parameters()
-    check_if_time_to_print()
+    # check_if_time_to_print()
+    console.update()
