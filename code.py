@@ -60,6 +60,42 @@ class CONSOLE:
         print('Tm', vehicle_data['motor_temperature']/1E1, end=' | ')
         print(time.monotonic())
 
+class CANBUS:
+
+    def __init__(self):
+
+        self.bus = can.interface.Bus(bustype='slcan',
+                                channel='/dev/tty.usbmodem14101',
+                                bitrate=500000)
+
+        self.packet_variables = {0x0901: [{'variable':'motor_rpm',
+                         'format':'>L',
+                         'start_byte':0,
+                         'byte_length':4},
+                        {'variable':'total_current',
+                         'format':'>H',
+                         'start_byte':4,
+                         'byte_length':2}],
+               0x1001: [{'variable':'controller_temperature',
+                         'format':'>H',
+                         'start_byte':0,
+                         'byte_length':2},
+                        {'variable':'motor_temperature',
+                         'format':'>H',
+                         'start_byte':2,
+                         'byte_length':2}]}
+
+    def update(self):
+        message = self.bus.recv(timeout=0.050)
+        if message is not None:
+            print('+', end='')
+            if message.arbitration_id in self.packet_variables.keys():
+                for pv in self.packet_variables[message.arbitration_id]:
+                    vehicle_data[pv['variable']] = struct.unpack(pv['format'], message.data[pv['start_byte']:pv['start_byte']+pv['byte_length']])[0]
+                # dispatch message to functions
+                # read_functions[str(hex(message.arbitration_id))](vehicle_data)
+        else:
+            print('.', end='')
 
 def update_parameters():
 
@@ -105,14 +141,16 @@ def update_parameters():
     else:
         print('.', end='')
 
-bus = can.interface.Bus(bustype='slcan',
-                        channel='/dev/tty.usbmodem14101',
-                        bitrate=500000)
+# bus = can.interface.Bus(bustype='slcan',
+#                         channel='/dev/tty.usbmodem14101',
+#                         bitrate=500000)
 
 
 console = CONSOLE()
+canbus = CANBUS()
 
 while 1:
-    update_parameters()
+    # update_parameters()
+    canbus.update()
     # check_if_time_to_print()
     console.update()
