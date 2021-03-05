@@ -1,4 +1,4 @@
-# desktop implementation of listener for VESC/ENNOID
+# desktop implementation of listener for VESC/ENNOID using Canable
 
 import struct
 import time
@@ -18,25 +18,7 @@ vehicle_data = {'battery_voltage':0,
                 'motor_current':0,
                 'controller_temperature':0}
 
-vehicle_data_last_read = {'battery_voltage':0,
-                          'battery_current':0,
-                          'battery_voltage_BMS':0,
-                          'battery_current_BMS':0,
-                          'high_cell_voltage':0,
-                          'low_cell_voltage':0,
-                          'high_battery_temp':0,
-                          'high_BMS_temp':0,
-                          'motor_rpm':0,
-                          'total_current':0,
-                          'motor_temperature':0,
-                          'motor_current':0,
-                          'controller_temperature':0}
-
-print("ENNOID/VESC CAN reader")
-
-
 class CONSOLE:
-# display class just checks if time to print and prints
 
     def __init__(self):
         self.display_update_seconds = 1.0
@@ -68,89 +50,32 @@ class CANBUS:
                                 channel='/dev/tty.usbmodem14101',
                                 bitrate=500000)
 
-        self.packet_variables = {0x0901: [{'variable':'motor_rpm',
-                         'format':'>L',
-                         'start_byte':0,
-                         'byte_length':4},
-                        {'variable':'total_current',
-                         'format':'>H',
-                         'start_byte':4,
-                         'byte_length':2}],
-               0x1001: [{'variable':'controller_temperature',
-                         'format':'>H',
-                         'start_byte':0,
-                         'byte_length':2},
-                        {'variable':'motor_temperature',
-                         'format':'>H',
-                         'start_byte':2,
-                         'byte_length':2}]}
+        self.packet_variables = {0x0901: (('motor_rpm', '>L', 0, 4),
+                             ('total_current', '>H', 4, 2)),
+                    0x1001: (('controller_temperature', '>H', 0, 2),
+                             ('motor_temperature', '>H', 2, 2)),
+                    0x1b0a: (('battery_voltage', '>H', 4, 2)),
+                    0x1e0a: (('battery_voltage_BMS', '>i', 0, 4),
+                             ('battery_current_BMS', '>i', 4, 4)),
+                    0x1f0a: (('high_cell_voltage', '>i', 0, 4),
+                             ('low_cell_voltage', '>i', 4, 4)),
+                             }
 
     def update(self):
         message = self.bus.recv(timeout=0.050)
         if message is not None:
             print('+', end='')
+            # iterate over variables and store for expected messages
             if message.arbitration_id in self.packet_variables.keys():
                 for pv in self.packet_variables[message.arbitration_id]:
-                    vehicle_data[pv['variable']] = struct.unpack(pv['format'], message.data[pv['start_byte']:pv['start_byte']+pv['byte_length']])[0]
-                # dispatch message to functions
-                # read_functions[str(hex(message.arbitration_id))](vehicle_data)
+                    vehicle_data[pv[0]] = struct.unpack(pv[1], message.data[pv[2]:pv[2]+pv[3]])[0]
         else:
             print('.', end='')
-
-def update_parameters():
-
-    # currently updates variables every time a packet is encountered
-    # will need to modify to get deltas
-    # or maybe filter and then derived_fsm samples?
-    # this could be a dict of dicts specifying variable code, byte start, byte length, and variable string
-
-    def process_vesc_09XX(vehicle_data):
-        vehicle_data['motor_rpm'] = struct.unpack('>L', message.data[0:4])[0]
-        vehicle_data['total_current'] = struct.unpack('>H', message.data[4:6])[0]
-
-    def process_vesc_10XX(vehicle_data):
-        vehicle_data['controller_temperature'] = struct.unpack('>H', message.data[0:2])[0]
-        vehicle_data['motor_temperature'] = struct.unpack('>H', message.data[2:4])[0]
-
-    def process_vesc_1bXX(vehicle_data):
-        vehicle_data['battery_voltage'] = struct.unpack('>H', message.data[4:6])[0]
-
-    def process_dbms_1fXX(vehicle_data):
-        vehicle_data['high_cell_voltage'], vehicle_data['low_cell_voltage'] = struct.unpack('>ii', message.data)
-
-    def process_dbms_1eXX(vehicle_data):
-        vehicle_data['battery_voltage_BMS'], vehicle_data['battery_current_BMS'] = struct.unpack('>ii', message.data)
-
-    # TODO: make CAN ids based on device ID config file
-    # TODO: more robust indexing scheme
-
-    message_ids = [0x0901, 0x1001, 0x1b01, 0x1e0a, 0x1f0a]
-
-    read_functions = {'0x901':process_vesc_09XX,
-                      '0x1001':process_vesc_10XX,
-                      '0x1b01':process_vesc_1bXX,
-                      '0x1e0a':process_dbms_1eXX,
-                      '0x1f0a':process_dbms_1fXX}
-
-    message = bus.recv(timeout=0.050)
-    if message is not None:
-        print('+', end='')
-        if message.arbitration_id in message_ids:
-            # dispatch message to functions
-            read_functions[str(hex(message.arbitration_id))](vehicle_data)
-    else:
-        print('.', end='')
-
-# bus = can.interface.Bus(bustype='slcan',
-#                         channel='/dev/tty.usbmodem14101',
-#                         bitrate=500000)
-
 
 console = CONSOLE()
 canbus = CANBUS()
 
+print("ENNOID/VESC CAN reader")
 while 1:
-    # update_parameters()
     canbus.update()
-    # check_if_time_to_print()
     console.update()
