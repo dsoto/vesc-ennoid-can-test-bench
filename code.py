@@ -16,7 +16,8 @@ vehicle_data = {'battery_voltage':0,
                 'total_current':0,
                 'motor_temperature':0,
                 'motor_current':0,
-                'controller_temperature':0}
+                'controller_temperature':0,
+                'dummy':0}
 
 class CONSOLE:
 
@@ -40,6 +41,8 @@ class CONSOLE:
         print('Im', vehicle_data['total_current']/1E1, end=' | ')
         print('Tc', vehicle_data['controller_temperature']/1E1, end=' | ')
         print('Tm', vehicle_data['motor_temperature']/1E1, end=' | ')
+        print('Tbat', vehicle_data['high_battery_temp']/1E2, end=' | ')
+        print('TBMS', vehicle_data['high_BMS_temp']/1E2, end=' | ')
         print(time.monotonic())
 
 class CANBUS:
@@ -50,16 +53,18 @@ class CANBUS:
                                 channel='/dev/tty.usbmodem14101',
                                 bitrate=500000)
 
-        self.packet_variables = {0x0901: (('motor_rpm', '>L', 0, 4),
-                             ('total_current', '>H', 4, 2)),
-                    0x1001: (('controller_temperature', '>H', 0, 2),
-                             ('motor_temperature', '>H', 2, 2)),
-                    0x1b0a: (('battery_voltage', '>H', 4, 2)),
-                    0x1e0a: (('battery_voltage_BMS', '>i', 0, 4),
-                             ('battery_current_BMS', '>i', 4, 4)),
-                    0x1f0a: (('high_cell_voltage', '>i', 0, 4),
-                             ('low_cell_voltage', '>i', 4, 4)),
-                             }
+        self.packet_variables = {0x0901: [('motor_rpm', '>L', 0, 4),
+                                          ('total_current', '>H', 4, 2)],
+                                 0x1001: [('controller_temperature', '>H', 0, 2),
+                                          ('motor_temperature', '>H', 2, 2)],
+                                 0x1b01: [('battery_voltage', '>H', 4, 2)],
+                                 0x1e0a: [('battery_voltage_BMS', '>i', 0, 4),
+                                          ('battery_current_BMS', '>i', 4, 4)],
+                                 0x1f0a: [('high_cell_voltage', '>i', 0, 4),
+                                          ('low_cell_voltage', '>i', 4, 4)],
+                                 0x210a: [('high_battery_temp', '>H', 2, 2),
+                                          ('high_BMS_temp', '>H', 6, 2)],
+                                         }
 
     def update(self):
         message = self.bus.recv(timeout=0.050)
