@@ -19,6 +19,38 @@ vehicle_data = {'battery_voltage':0,
                 'controller_temperature':0,
                 'dummy':0}
 
+time_stamps = {'event_loop_current':0,
+               'event_loop_previous':0,
+               'event_loop_elapsed':0}
+
+derived_data = {'internal_resistance':0.090,
+                'speed':0,
+                'distance':0,
+                'battery_voltage_prev':0,
+                'battery_current_prev':0,
+                'charge':0,
+                'energy':0,
+                'trip_efficiency':0,
+                'instantaneous_efficiency':0,
+                'voltage_difference_mohm':0}
+
+vehicle_parameters = {'wheel_circumference':1.89}
+
+class DERIVED:
+    def __init__(self):
+        self.last_sample = time.monotonic()
+        self.sampling_interval = 0.2
+
+    def update(self):
+        if time.monotonic() - self.last_sample > self.sampling_interval:
+            self.last_sample = time.monotonic()
+            self.compute_derived()
+            print('o', end='')
+
+    def compute_derived(self):
+        derived_data['speed'] = vehicle_data['motor_rpm'] * vehicle_parameters['wheel_circumference'] / 23 / 60.0
+        derived_data['distance'] += derived_data['speed']/1000.0
+
 class CONSOLE:
 
     def __init__(self):
@@ -43,6 +75,8 @@ class CONSOLE:
         print('Tm', vehicle_data['motor_temperature']/1E1, end=' | ')
         print('Tbat', vehicle_data['high_battery_temp']/1E2, end=' | ')
         print('TBMS', vehicle_data['high_BMS_temp']/1E2, end=' | ')
+        print('Sp', derived_data['speed'], end=' | ')
+        print('D', derived_data['distance'], end=' | ')
         print(time.monotonic())
 
 class CANBUS:
@@ -53,10 +87,10 @@ class CANBUS:
                                 channel='/dev/tty.usbmodem14101',
                                 bitrate=500000)
 
-        self.packet_variables = {0x0901: [('motor_rpm', '>L', 0, 4),
+        self.packet_variables = {0x0901: [('motor_rpm', '>l', 0, 4),
                                           ('total_current', '>H', 4, 2)],
                                  0x1001: [('controller_temperature', '>H', 0, 2),
-                                          ('motor_temperature', '>H', 2, 2)],
+                                          ('motor_temperature', '>h', 2, 2)],
                                  0x1b01: [('battery_voltage', '>H', 4, 2)],
                                  0x1e0a: [('battery_voltage_BMS', '>i', 0, 4),
                                           ('battery_current_BMS', '>i', 4, 4)],
@@ -79,8 +113,10 @@ class CANBUS:
 
 console = CONSOLE()
 canbus = CANBUS()
+derived = DERIVED()
 
 print("ENNOID/VESC CAN reader")
 while 1:
     canbus.update()
     console.update()
+    derived.update()
