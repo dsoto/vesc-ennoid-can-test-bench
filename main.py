@@ -1,4 +1,4 @@
-# desktop implementation of listener for VESC/ENNOID using Canable
+# desktop implementation of listener for VESC/ENNOID CAN packets
 
 import struct
 import time
@@ -31,8 +31,7 @@ derived_data = {'internal_resistance':0.090,
                 'charge':0,
                 'energy':0,
                 'trip_efficiency':0,
-                'instantaneous_efficiency':0,
-                'voltage_difference_mohm':0}
+                'instantaneous_efficiency':0}
 
 vehicle_parameters = {'wheel_circumference':1.89}
 
@@ -54,30 +53,38 @@ class DERIVED:
 class CONSOLE:
 
     def __init__(self):
-        self.display_update_seconds = 1.0
+        self.display_update_seconds = 0.2
         self.last_display = time.monotonic()
-
+        # (key, data dictionary, display abbreviation, precision)
+        self.display = [
+                        ('speed',     derived_data, 'S',   1),
+                        ('motor_rpm', vehicle_data, 'rpm', 0),
+                        ('high_cell_voltage',     vehicle_data, 'Vc', 3),
+                        ('low_cell_voltage',     vehicle_data, 'Vc', 3),
+                        ('battery_voltage',     vehicle_data, 'Vc', 1),
+                        ('battery_voltage_BMS', vehicle_data, 'Vb', 1),
+                        ('battery_current',     vehicle_data, 'Ic', 1),
+                        ('battery_current_BMS', vehicle_data, 'Ib', 1),
+                        ('total_current',       vehicle_data, 'Im', 1),
+                        ('controller_temperature', vehicle_data, 'Tc', 1),
+                        ('motor_temperature', vehicle_data, 'Tm', 1),
+                        ('high_battery_temp', vehicle_data, 'Tbat', 1),
+                        ('high_BMS_temp', vehicle_data, 'Tbms', 1),
+                        ('distance', derived_data, 'D', 1),
+                        ]
     def update(self):
         if time.monotonic() - self.last_display > self.display_update_seconds:
             self.print_to_console()
             self.last_display = time.monotonic()
 
+
     def print_to_console(self):
         print()
-        print("R", vehicle_data['motor_rpm']/1E0, end=' | ')
-        print("H", vehicle_data['high_cell_voltage']/1E5, end=' | ')
-        print("L", vehicle_data['low_cell_voltage']/1E5, end=' | ')
-        print('Vb', vehicle_data['battery_voltage_BMS']/1E5, end=' | ')
-        print('Vc', vehicle_data['battery_voltage']/1E1, end=' | ')
-        print('I', vehicle_data['battery_current_BMS']/1E5, end=' | ')
-        print('Im', vehicle_data['total_current']/1E1, end=' | ')
-        print('Tc', vehicle_data['controller_temperature']/1E1, end=' | ')
-        print('Tm', vehicle_data['motor_temperature']/1E1, end=' | ')
-        print('Tbat', vehicle_data['high_battery_temp']/1E2, end=' | ')
-        print('TBMS', vehicle_data['high_BMS_temp']/1E2, end=' | ')
-        print('Sp', derived_data['speed'], end=' | ')
-        print('D', derived_data['distance'], end=' | ')
-        print(time.monotonic())
+        for l in self.display:
+            # output abbreviation and formatted float based on specification
+            print(f'{l[2]} {l[1][l[0]]:.{l[3]}f}', end=' | ')
+
+        print(f'{time.monotonic():.3f}')
 
 class CANBUS:
 
@@ -87,18 +94,18 @@ class CANBUS:
                                 channel='/dev/tty.usbmodem14101',
                                 bitrate=500000)
 
-        self.packet_variables = {0x0901: [('motor_rpm', '>l', 0, 4),
-                                          ('total_current', '>H', 4, 2)],
-                                 0x1001: [('controller_temperature', '>H', 0, 2),
-                                          ('motor_temperature', '>h', 2, 2)],
-                                 0x1b01: [('battery_voltage', '>H', 4, 2)],
-                                 0x1e0a: [('battery_voltage_BMS', '>i', 0, 4),
-                                          ('battery_current_BMS', '>i', 4, 4)],
-                                 0x1f0a: [('high_cell_voltage', '>i', 0, 4),
-                                          ('low_cell_voltage', '>i', 4, 4)],
-                                 0x210a: [('high_battery_temp', '>H', 2, 2),
-                                          ('high_BMS_temp', '>H', 6, 2)],
-                                         }
+        # define CAN messages to interpret
+        self.packet_variables = {0x0901: [('motor_rpm',     '>l', 0, 4, 1E0),
+                                          ('total_current', '>H', 4, 2, 1E1)],
+                                 0x1001: [('controller_temperature', '>H', 0, 2, 1E1),
+                                          ('motor_temperature',      '>h', 2, 2, 1E1)],
+                                 0x1b01: [('battery_voltage',     '>H', 4, 2, 1E1)],
+                                 0x1e0a: [('battery_voltage_BMS', '>i', 0, 4, 1E5),
+                                          ('battery_current_BMS', '>i', 4, 4, 1E5)],
+                                 0x1f0a: [('high_cell_voltage', '>i', 0, 4, 1E5),
+                                          ('low_cell_voltage',  '>i', 4, 4, 1E5)],
+                                 0x210a: [('high_battery_temp', '>H', 2, 2, 1E2),
+                                          ('high_BMS_temp',     '>H', 6, 2, 1E2)]}
 
     def update(self):
         message = self.bus.recv(timeout=0.050)
@@ -107,7 +114,7 @@ class CANBUS:
             # iterate over variables and store for expected messages
             if message.arbitration_id in self.packet_variables.keys():
                 for pv in self.packet_variables[message.arbitration_id]:
-                    vehicle_data[pv[0]] = struct.unpack(pv[1], message.data[pv[2]:pv[2]+pv[3]])[0]
+                    vehicle_data[pv[0]] = struct.unpack(pv[1], message.data[pv[2]:pv[2]+pv[3]])[0]/pv[4]
         else:
             print('.', end='')
 
